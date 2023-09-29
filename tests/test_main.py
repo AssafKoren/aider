@@ -9,6 +9,7 @@ from unittest.mock import patch
 from prompt_toolkit.input import DummyInput
 from prompt_toolkit.output import DummyOutput
 
+from aider.dump import dump  # noqa: F401
 from aider.main import main
 
 
@@ -28,10 +29,10 @@ class TestMain(TestCase):
         self.patcher.stop()
 
     def test_main_with_empty_dir_no_files_on_command(self):
-        main([], input=DummyInput(), output=DummyOutput())
+        main(["--no-git"], input=DummyInput(), output=DummyOutput())
 
     def test_main_with_empty_dir_new_file(self):
-        main(["foo.txt"], input=DummyInput(), output=DummyOutput())
+        main(["foo.txt", "--yes"], input=DummyInput(), output=DummyOutput())
         self.assertTrue(os.path.exists("foo.txt"))
 
     def test_main_with_empty_git_dir_new_file(self):
@@ -40,6 +41,23 @@ class TestMain(TestCase):
         subprocess.run(["git", "config", "user.name", "Dummy User"])
         main(["--yes", "foo.txt"], input=DummyInput(), output=DummyOutput())
         self.assertTrue(os.path.exists("foo.txt"))
+
+    def test_main_with_git_config_yml(self):
+        subprocess.run(["git", "init"])
+        subprocess.run(["git", "config", "user.email", "dummy@example.com"])
+        subprocess.run(["git", "config", "user.name", "Dummy User"])
+
+        Path(".aider.conf.yml").write_text("no-auto-commits: true\n")
+        with patch("aider.main.Coder.create") as MockCoder:
+            main([], input=DummyInput(), output=DummyOutput())
+            _, kwargs = MockCoder.call_args
+            assert kwargs["auto_commits"] is False
+
+        Path(".aider.conf.yml").write_text("auto-commits: true\n")
+        with patch("aider.main.Coder.create") as MockCoder:
+            main([], input=DummyInput(), output=DummyOutput())
+            _, kwargs = MockCoder.call_args
+            assert kwargs["auto_commits"] is True
 
     def test_main_with_empty_git_dir_new_subdir_file(self):
         subprocess.run(["git", "init"])
@@ -59,7 +77,9 @@ class TestMain(TestCase):
 
     def test_main_args(self):
         with patch("aider.main.Coder.create") as MockCoder:
-            main(["--no-auto-commits"], input=DummyInput())
+            # --yes will just ok the git repo without blocking on input
+            # following calls to main will see the new repo already
+            main(["--no-auto-commits", "--yes"], input=DummyInput())
             _, kwargs = MockCoder.call_args
             assert kwargs["auto_commits"] is False
 

@@ -66,19 +66,21 @@ class Coder:
         )
 
         openai.api_key = openai_api_key
-        openai.api_base = openai_api_base
+        openai.api_base = "https://openrouter.ai/api/v1"
 
-        if not main_model:
-            main_model = models.GPT35_16k
+        main_model = models.GPT4
 
-        if not main_model.always_available:
-            if not check_model_availability(main_model):
-                if main_model != models.GPT4:
-                    io.tool_error(
-                        f"API key does not support {main_model.name}, falling back to"
-                        f" {models.GPT35_16k.name}"
-                    )
-                main_model = models.GPT35_16k
+        # if not main_model:
+        #     main_model = models.GPT35_16k
+
+        # if not main_model.always_available:
+        #     if not check_model_availability(main_model):
+        #         if main_model != models.GPT4:
+        #             io.tool_error(
+        #                 f"API key does not support {main_model.name}, falling back to"
+        #                 f" {models.GPT35_16k.name}"
+        #             )
+        #         main_model = models.GPT35_16k
 
         if edit_format is None:
             edit_format = main_model.edit_format
@@ -167,13 +169,13 @@ class Coder:
             self.find_common_root()
 
         if main_model.use_repo_map and self.repo and self.gpt_prompts.repo_content_prefix:
-            rm_io = io if self.verbose else None
             self.repo_map = RepoMap(
                 map_tokens,
                 self.root,
                 self.main_model,
-                rm_io,
+                io,
                 self.gpt_prompts.repo_content_prefix,
+                self.verbose,
             )
 
             if self.repo_map.use_ctags:
@@ -287,12 +289,21 @@ class Coder:
     ]
     fence = fences[0]
 
+    def get_abs_fnames_content(self):
+        for fname in list(self.abs_fnames):
+            content = self.io.read_text(fname)
+
+            if content is None:
+                relative_fname = self.get_rel_fname(fname)
+                self.io.tool_error(f"Dropping {relative_fname} from the chat.")
+                self.abs_fnames.remove(fname)
+            else:
+                yield fname, content
+
     def choose_fence(self):
         all_content = ""
-        for fname in self.abs_fnames:
-            all_content += Path(fname).read_text() + "\n"
-
-        all_content = all_content.splitlines()
+        for _fname, content in self.get_abs_fnames_content():
+            all_content += content + "\n"
 
         good = False
         for fence_open, fence_close in self.fences:
@@ -317,15 +328,15 @@ class Coder:
             fnames = self.abs_fnames
 
         prompt = ""
-        for fname in fnames:
+        for fname, content in self.get_abs_fnames_content():
             relative_fname = self.get_rel_fname(fname)
-            prompt += utils.quoted_file(fname, relative_fname, fence=self.fence)
-        return prompt
+            prompt = "\n"
+            prompt += relative_fname
+            prompt += f"\n{self.fence[0]}\n"
+            prompt += content
+            prompt += f"{self.fence[1]}\n"
 
-    def recheck_abs_fnames(self):
-        self.abs_fnames = set(
-            fname for fname in self.abs_fnames if Path(fname).exists() and Path(fname).is_file()
-        )
+        return prompt
 
     def get_files_messages(self):
         all_content = ""
@@ -454,10 +465,6 @@ class Coder:
         ]
 
         messages += self.done_messages
-
-        # notice if files disappear
-        self.recheck_abs_fnames()
-
         messages += self.get_files_messages()
         messages += self.cur_messages
 
@@ -597,11 +604,16 @@ class Coder:
     )
     def send_with_retries(self, model, messages, functions):
         kwargs = dict(
-            model=model,
+            model=f"openai/{model}",
             messages=messages,
             temperature=0,
             stream=self.stream,
+            headers={
+                "HTTP-Referer": "aider-openrouter",  # To identify your app
+                "X-Title": "aider-openrouter",
+            },
         )
+
         if functions is not None:
             kwargs["functions"] = self.functions
 
@@ -917,8 +929,8 @@ class Coder:
         full_path = os.path.abspath(os.path.join(self.root, path))
 
         if full_path in self.abs_fnames:
-            if not self.dry_run and write_content:
-                Path(full_path).write_text(write_content)
+            if write_content:
+                self.io.write_text(full_path, write_content)
             return full_path
 
         if not Path(full_path).exists():
@@ -943,12 +955,14 @@ class Coder:
                 if not self.dry_run:
                     self.repo.git.add(full_path)
 
-        if not self.dry_run and write_content:
-            Path(full_path).write_text(write_content)
+        if write_content:
+            self.io.write_text(full_path, write_content)
 
         return full_path
 
     def get_tracked_files(self):
+        if not self.repo:
+            return []
         # convert to appropriate os.sep, since git always normalizes to /
         files = set(self.repo.git.ls_files().splitlines())
         res = set(str(Path(PurePosixPath(path))) for path in files)

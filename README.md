@@ -1,3 +1,18 @@
+# Test new LLMs (Llama2, CodeLlama, etc.)
+
+Test other LLMs (codellama, llama2, anthropic, cohere, etc.) with Aider, we just open-sourced a 1-click proxy to translate openai calls to huggingface, anthropic, togetherai, etc. api calls.
+
+**code**
+```
+$ pip install litellm
+$ litellm --model huggingface/bigcode/starcoder
+#INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+Docs: https://docs.litellm.ai/docs/proxy_server
+
+I'd love to know if this solves any problem for you
+
 # aider is GPT powered coding in your terminal
 
 `aider` is a command-line chat tool that allows you to write and edit
@@ -16,6 +31,7 @@ It also has features that [help GPT-4 understand and modify larger codebases](ht
 - [In-chat commands](#in-chat-commands)
 - [Tips](#tips)
 - [GPT-4 vs GPT-3.5](#gpt-4-vs-gpt-35)
+- [FAQ](https://aider.chat/docs/faq.html)
 
 ## Getting started
 
@@ -67,11 +83,9 @@ You can find more chat transcripts on the [examples page](https://aider.chat/exa
   * As an environment variable:
     * `export OPENAI_API_KEY=sk-...` on Linux or Mac
     * `setx OPENAI_API_KEY sk-...` in Windows PowerShell
-  * Or include `openai-api-key: sk-...` in an `.aider.config.yml` file in your current directory or at the root of your git repo, alongside the `.git` dir.
+  * Or include `openai-api-key: sk-...` in an `.aider.conf.yml` file in your home directory or at the root of your git repo, alongside the `.git` dir.
 
-3. Optionally, install [universal ctags](https://github.com/universal-ctags/ctags). This is helpful if you plan to use aider and GPT-4 with repositories that have more than a handful of files.  This allows aider to build a [map of your entire git repo](https://aider.chat/docs/ctags.html) and share it with GPT to help it better understand and modify large codebases.
-  * The `ctags` command needs to be on your shell path so that it will run by default when aider invokes `ctags ...`.
-  * You need a build which includes the json feature. You can check by running `ctags --version` and looking for `+json` in the `Optional compiled features` list.
+3. Optionally, install [universal ctags](https://github.com/universal-ctags/ctags). This is helpful if you plan to use aider and GPT-4 with repositories that have more than a handful of files.  This allows aider to build a [map of your entire git repo](https://aider.chat/docs/ctags.html) and share it with GPT to help it better understand and modify large codebases. See the [FAQ entry about ctags](https://aider.chat/docs/faq.html#how-do-i-get-ctags-working) for more info.
 
 ## Usage
 
